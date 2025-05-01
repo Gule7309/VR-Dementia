@@ -43,6 +43,20 @@ models/
   ├── report_generation_model.py     # 報告生成模型
   ├── test_models.py                # 模型測試腳本
   └── README.md                     # 模型文檔
+
+schemas/
+  ├── __init__.py               # 模組初始化和匯出
+  ├── data_models.py            # 標準化數據模型定義
+  └── data_conversion.py        # 數據轉換與收集工具
+
+examples/
+  ├── data_collection_example.py    # 數據收集示例
+  └── model_training_example.py     # 模型訓練示例
+
+data/
+  ├── user_profiles/            # 用戶資料
+  ├── game_sessions/            # 遊戲會話數據
+  └── assessment_reports/       # 評估報告
 ```
 
 ## 系統運作邏輯
@@ -123,7 +137,46 @@ models/
    - 生成表現趨勢圖和認知領域雷達圖
    - 提供針對性的訓練建議
 
-### 系統運行流程
+## 數據模型與格式
+
+系統使用標準化的數據結構，確保數據收集、模型訓練和應用之間的一致性。
+
+### 主要數據類型
+
+1. **用戶配置文件** (`UserProfile`)
+   - 包含用戶基本信息（年齡、性別、教育程度）
+   - 記錄認知狀態和能力指標
+   - 存儲用戶偏好和設置
+
+2. **遊戲表現數據** (`GamePerformanceData`)
+   - 記錄遊戲類型、難度級別和時間戳
+   - 包含詳細的表現指標（準確率、完成時間等）
+   - 存儲遊戲特定的指標（計算遊戲中的操作準確率等）
+
+3. **互動數據** (`InteractionData`) 
+   - 記錄用戶在VR環境中的交互行為
+   - 包含動作序列、視線數據和移動模式
+   - 用於分析用戶的操作習慣和技能
+
+4. **難度調整數據** (`DifficultyAdjustmentData`)
+   - 記錄難度調整事件和觸發條件
+   - 包含調整前後的參數變化
+   - 追蹤用戶對難度變化的反應
+
+5. **會話數據** (`SessionData`)
+   - 綜合記錄單次遊戲會話的所有數據
+   - 包含難度歷史、表現歷史和滿意度歷史
+   - 用於跨會話的分析和比較
+
+### 數據收集與轉換
+
+系統提供了數據收集和轉換工具，簡化了從遊戲到模型的數據流程：
+
+- **GameDataCollector**：從遊戲中收集原始數據並轉換為標準格式
+- **ModelInputConverter**：將標準數據格式轉換為模型所需的輸入格式
+- **Batch Processing Tools**：提供批量處理和分析數據的工具
+
+## 系統運行流程
 
 1. **遊戲開始**：初始化模型管理器和所需模型
 2. **遊戲進行中**：
@@ -186,38 +239,72 @@ print(f"新難度: {adjustment['difficulty_level']}")
 print(f"難度參數: {adjustment['difficulty_params']}")
 ```
 
-### 處理多模態輸入
+### 收集遊戲數據
 
 ```python
-# 物體配對任務
-matching_data = {
-    'reference_image': reference_img,  # 參考物體圖像
-    'candidate_images': [candidate1, candidate2, candidate3]  # 候選物體圖像
-}
-match_result = model_manager.process_multimodal_input('object_matching', matching_data)
+from schemas import GameDataCollector, GameType
 
-# 語音識別
-speech_result = model_manager.process_multimodal_input('speech_recognition', audio_data)
+# 創建數據收集器
+collector = GameDataCollector()
+
+# 開始會話
+user_id = "user_123"
+game_type = GameType.ATTENTION_CALCULATION.value
+session_id = collector.start_session(user_id, game_type)
+
+# 記錄遊戲表現
+performance_data = {
+    'accuracy': 0.85,
+    'completion_time': 45.2,
+    'correct_responses': 17,
+    'incorrect_responses': 3
+}
+game_data = collector.record_game_performance(session_id, "round_1", performance_data)
+
+# 記錄難度調整
+collector.record_difficulty_adjustment(session_id, 3, {
+    'time_limit': 30,
+    'distraction_level': 2,
+    'calculation_complexity': 4
+})
+
+# 結束會話並保存數據
+session = collector.end_session(session_id)
+collector.save_session_data(session_id, f"data/sessions/{session_id}.json")
 ```
 
-### 評估認知功能
+### 處理與評估認知功能
 
 ```python
-# 評估單個遊戲表現
-assessment = model_manager.assess_cognitive_function('user123', game_data)
+# 載入會話數據
+from schemas import load_session_data, ModelInputConverter
+import glob
+
+# 載入特定用戶的所有會話
+user_sessions = []
+for file_path in glob.glob(f"data/sessions/user_123_*.json"):
+    user_sessions.append(load_session_data(file_path))
+
+# 從會話中提取表現數據
+game_data_list = []
+for session in user_sessions:
+    # 處理會話數據
+    pass
+
+# 準備認知評估輸入
+assessment_input = ModelInputConverter.prepare_cognitive_assessment_input(game_data_list)
+
+# 評估認知功能
+assessment = model_manager.assess_cognitive_function('user_123', assessment_input)
 print(f"域評分: {assessment['domain_scores']}")
 print(f"整體評分: {assessment['overall_score']}")
-
-# 獲取綜合評估
-comprehensive = model_manager.get_comprehensive_assessment('user123')
-print(f"認知趨勢: {comprehensive['trends']}")
 ```
 
 ### 生成評估報告
 
 ```python
 # 生成報告
-report = model_manager.generate_assessment_report('user123', '張三', game_data_list)
+report = model_manager.generate_assessment_report('user_123', '張三', game_data_list)
 print(f"摘要: {report['summary']}")
 print(f"建議: {report['recommendations']}")
 
